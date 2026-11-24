@@ -6,8 +6,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install flake8
@@ -18,8 +18,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install dependencies
@@ -30,9 +30,20 @@ jobs:
   build:
     needs: [lint, test]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build Docker image
-        run: docker build -t ci-cd-starter .
+        run: |
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}
+          docker build -t $IMAGE:latest -t $IMAGE:${GITHUB_SHA::7} .
       - name: Run the image
-        run: docker run --rm ci-cd-starter
+        run: docker run --rm ghcr.io/${GITHUB_REPOSITORY,,}:latest
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Push image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker push --all-tags ghcr.io/${GITHUB_REPOSITORY,,}
